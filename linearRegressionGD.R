@@ -1,140 +1,128 @@
-linearRegressionGD<- function(y, X, epsilon = 0.0001, eta = 10, iters = 1000){
-    X = as.matrix(data.frame(rep(1,length(y)),X))
-    N = dim(X)[1]
-    print("Initialize parameters...")
-    theta.init = as.matrix(rnorm(n=dim(X)[2], mean=0,sd = 1)) # Initialize theta
-    theta.init = t(theta.init)
-    e = t(y) - theta.init%*%t(X)
-    grad.init = -(2/N)%*%(e)%*%X
-    theta = theta.init - eta*(1/N)*grad.init
-    l2loss = c()
-    for(i in 1:iters){
-        l2loss = c(l2loss,sqrt(sum((t(y) - theta%*%t(X))^2)))
-        e = t(y) - theta%*%t(X)
-        grad = -(2/N)%*%e%*%X
-        theta = theta - eta*(2/N)*grad
-        if(sqrt(sum(grad^2)) <= epsilon){
-            break
-        }
+addBiasUnit <- function(X) {
+    if ( ! (all(X[,1]==1) || all(X[,dim(X)[2]]==1)) ) {
+        X <- as.matrix(data.frame(rep(1,dim(X)[1]),X))
+        colnames(X)[1] <- '(Intercept)'
     }
-    print("Algorithm converged")
-    print(paste("Final gradient norm is",sqrt(sum(grad^2))))
-    values<-list("coef" = t(theta), "l2loss" = l2loss)
-    return(values)
+    return(X)
 }
-
-linearRegressionSGD<- function(y, X, epsilon = 0.0001, eta = 10, iters = 1000){
-    X = as.matrix(data.frame(rep(1,length(y)),X))
-    N = dim(X)[1]
-    print("Initialize parameters...")
-    theta.init = as.matrix(rnorm(n=dim(X)[2], mean=0,sd = 1)) # Initialize theta
-    theta.init = t(theta.init)
-    e = t(y) - theta.init%*%t(X)
-    grad.init = -(2/N)%*%(e)%*%X
-    theta = theta.init - eta*(1/N)*grad.init
-    l2loss = c()
-    for(i in 1:iters){
-        ix <- sample(N)
-        for (j in ix) {
-            e = y[j] - matrix(theta,nrow=1)%*%matrix(X[j,],ncol=1)
-            grad = -(2)%*%e%*%X[j,]
-            theta = theta - eta*(2/N)*grad
-            if(sqrt(sum(grad^2)) <= epsilon){
-                break
-            }
-        }
-        l2loss = c(l2loss,sqrt(sum((t(y) - theta%*%t(X))^2)))
+gradientFun <- function(theta, y, X) {
+    e <- matrix(y,ncol=1) - X %*% matrix(theta,ncol=1)
+    grad <- -(2) %*% t(e) %*% X
+    return(grad)
+}
+updateWeights <- function(theta,grad,eta) {
+    theta_updated <- theta - 2*eta*matrix(grad,ncol=1)
+    return(theta_updated)
+}
+sumOfSquaredError <- function(y,prediction) {
+    sum((y - prediction)^2)
+}
+initOutputDataframe <- function(n,method_index)
+    return(data.frame(
+        example   = numeric(n+1),
+        loss      = numeric(n+1),
+        grad      = numeric(n+1),
+        iter      = numeric(n+1),
+        method    = factor(method_index,levels=1:4,c('GD','SGD','Candide','Smith')),
+        model_err = numeric(n+1)
+    ))
+teacher.candide <- function(theta,y,X,eta) {
+    N <- dim(X)[1]
+    obj <- rep(0,N)
+    for (j in 1:N) {
+        grad <- gradientFun(theta, y[j], X[j,])# / N
+        theta_tmp <- updateWeights(theta,grad,eta/N)
+        obj[j] <- sqrt(sumOfSquaredError(y,X %*% theta_tmp))
     }
-    print("Algorithm converged")
-    print(paste("Final gradient norm is",sqrt(sum(grad^2))))
-    values<-list("coef" = t(theta), "l2loss" = l2loss)
-    return(values)
+    return( which.min(obj) )
 }
-
-linearRegressionSGD_Candide <- function(y, X, epsilon = 0.0001, eta = 10, iters = 1000){
-    X = as.matrix(data.frame(rep(1,length(y)),X))
-    N = dim(X)[1]
-    print("Initialize parameters...")
-    theta.init = as.matrix(rnorm(n=dim(X)[2], mean=0,sd = 1)) # Initialize theta
-    theta.init = t(theta.init)
-    e = t(y) - theta.init%*%t(X)
-    grad.init = -(2/N)%*%(e)%*%X
-    theta = theta.init - eta*(1/N)*grad.init
-    l2loss = data.frame(example=numeric(iters*N),loss=numeric(iters*N))
-    for(i in 1:(iters*N)) {
-        l2loss_inner = rep(0,N)
-        for (j in 1:N) {
-            e = y[j] - matrix(theta,nrow=1)%*%matrix(X[j,],ncol=1)
-            grad = -(2)%*%e%*%X[j,]
-            theta_tmp = theta - eta*(2/N)*grad
-            l2loss_inner[j] = sqrt(sum((t(y) - theta_tmp%*%t(X))^2))
-        }
-        k <- which.min(l2loss_inner)
-        e = y[k] - matrix(theta,nrow=1)%*%matrix(X[k,],ncol=1)
-        grad = -(2)%*%e%*%X[k,]
-        theta = theta - eta*(2/N)*grad
-        l2loss$example[i] = k
-        l2loss$loss[i] = sqrt(sum((t(y) - theta%*%t(X))^2))
-        if(sqrt(sum(grad^2)) <= epsilon){
-            break
-        }
+teacher.smith <- function(theta,true_theta,y,X,eta) {
+    N <- dim(X)[1]
+    obj <- rep(0, N)
+    for (j in 1:N) {
+        grad <- gradientFun(theta, y[j], X[j,])# / N
+        obj[j] <- omniscient_loss(grad,theta,true_theta,eta)
     }
-    l2loss <- l2loss[l2loss$example!=0,]
-    print("Algorithm converged")
-    print(paste("Final gradient norm is",sqrt(sum(grad^2))))
-    values<-list("coef" = t(theta), "l2loss" = l2loss)
-    return(values)
+    return( which.min(obj) )
 }
-
-
-### SMITH
+teacher.sgd <- function(N) {
+    return(sample(N,1))
+}
 omniscient_loss <- function(grad,theta,teacher,eta) {
     difficulty <- sqrt(sum(grad^2))
     usefulness <- matrix((theta - teacher),nrow=1) %*% matrix(grad,ncol=1)
     obj <- (eta^2 * difficulty) - (2 * eta * usefulness)
     return(obj)
 }
-linearRegressionSGD_Smith <- function(y, X, teacher, epsilon = 0.0001, eta = 100, iters = 1000){
-    # Teacher will be the solution from the standard closed-form linear regression (lm).
-    if (is.null(teacher)) {
-        teacher <- coef(lm(y~X))
-    }
-    X = as.matrix(data.frame(rep(1,length(y)),X))
-    names(X)[1] <- '(Intercept)'
-    N = dim(X)[1]
-    if (dim(X)[2] > length(teacher)) {
-        teacher <- c(0,teacher)
-    }
-    names(teacher)[0] <- '(Intercept)'
+linearRegressionGD<- function(y, X, true_theta, epsilon = 0.0001, eta = 10, iters = 1000){
+    METHOD_INDEX = 1
+    X <- addBiasUnit(X)
+    N <- dim(X)[1]
     print("Initialize parameters...")
-    theta.init = as.matrix(rnorm(n=dim(X)[2], mean=0,sd = 1)) # Initialize theta
-    theta.init = t(theta.init)
-    e = t(y) - theta.init%*%t(X)
-    grad.init = -(2/N)%*%(e)%*%X
-    theta = theta.init - eta*(1/N)*grad.init
-    l2loss = data.frame(example=numeric(iters*N),loss=numeric(iters*N))
-    for(i in 1:(iters*N)) {
-        obj <- rep(0, N)
-        for (j in 1:N) {
-            e = y[j] - matrix(theta,nrow=1)%*%matrix(X[j,],ncol=1)
-            grad = -(2)%*%e%*%X[j,]
-            obj[j] <- omniscient_loss(grad,theta,teacher,eta)
-        }
-        k <- which.min(obj)
-        e = y[k] - matrix(theta,nrow=1)%*%matrix(X[k,],ncol=1)
-        grad = -(2)%*%e%*%X[k,]
-        theta = theta - eta*(2/N)*grad
-        l2loss$example[i] = k
-        l2loss$loss[i] = sqrt(sum((t(y) - theta%*%t(X))^2))
+    theta.init <- matrix(rnorm(n=dim(X)[2], mean=0, sd = 1), ncol=1) # Initialize theta
+    grad.init <- gradientFun(theta.init, y, X) / N
+    theta <- updateWeights(theta.init, grad.init, eta/N)
+    l2loss <- initOutputDataframe(iters+1, METHOD_INDEX)
+    l2loss$loss[1] <- sqrt(sumOfSquaredError(y,X %*% theta))
+    for(i in 1:iters){
+        grad <- gradientFun(theta, y, X) / N
+        theta <- updateWeights(theta,grad,eta/N)
+        l2loss$example[i+1] <- 0
+        l2loss$loss[i+1] <- sqrt(sumOfSquaredError(y,X %*% theta))
+        l2loss$grad[i+1] <- sqrt(sum(grad^2))
+        l2loss$iter[i+1] <- i*N
+        l2loss$model_err[i+1] <- sqrt(sumOfSquaredError(true_theta, theta))
         if(sqrt(sum(grad^2)) <= epsilon){
             break
         }
     }
-    l2loss <- l2loss[l2loss$example!=0,]
+    l2loss <- l2loss[1:(i+1),]
     print("Algorithm converged")
     print(paste("Final gradient norm is",sqrt(sum(grad^2))))
     values<-list("coef" = t(theta), "l2loss" = l2loss)
     return(values)
 }
 
-
+linearRegressionSGD<- function(y, X, true_theta, epsilon = 0.0001, eta = 10, iters = 1000, method=c('SGD','candide','smith')) {
+    if ( tolower(method) == 'SGD' ) {
+        METHOD_INDEX = 2
+    } else if ( tolower(method) == 'candide' ) {
+        METHOD_INDEX = 3
+    } else if ( tolower(method) == 'smith' ) {
+        METHOD_INDEX = 4
+    } else {
+        METHOD_INDEX = 2
+    }
+    X <- addBiasUnit(X)
+    N <- dim(X)[1]
+    print("Initialize parameters...")
+    theta.init <- matrix(rnorm(n=dim(X)[2], mean=0, sd = 1), ncol=1) # Initialize theta
+    grad.init <- gradientFun(theta.init, y, X) / N
+    theta <- updateWeights(theta.init, grad.init, eta/N)
+    l2loss <- initOutputDataframe((iters*N)+1, METHOD_INDEX)
+    l2loss$loss[1] <- sqrt(sumOfSquaredError(y,X %*% theta))
+    for(i in 1:(iters*N)) {
+        if        ( METHOD_INDEX == 2 ) {
+            k <- teacher.sgd(N)
+        } else if ( METHOD_INDEX == 3 ) {
+            k <- teacher.candide(theta,y,X,eta)
+        } else if ( METHOD_INDEX == 4 ) {
+            k <- teacher.smith(theta,true_theta,y,X,eta)
+        }
+        grad <- gradientFun(theta, y[k], X[k,])# / N
+        theta <- updateWeights(theta,grad,eta/N)
+        l2loss$example[i+1] <- k
+        l2loss$loss[i+1] <- sqrt(sumOfSquaredError(y,X %*% theta))
+        l2loss$grad[i+1] <- sqrt(sum(grad^2))
+        l2loss$iter[i+1] <- i
+        l2loss$model_err[i+1] <- sqrt(sumOfSquaredError(true_theta, theta))
+        if(sqrt(sum(grad^2)) <= epsilon){
+            break
+        }
+    }
+    l2loss <- l2loss[1:(i+1),]
+    print("Algorithm converged")
+    print(paste("Final gradient norm is",sqrt(sum(grad^2))))
+    values<-list("coef" = t(theta), "l2loss" = l2loss)
+    return(values)
+}
