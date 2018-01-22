@@ -3,3 +3,5 @@ Papers/
 *.png
 *.Rproj
 .Rproj.user/
+*.swp
+*.pyc
