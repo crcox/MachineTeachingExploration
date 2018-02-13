@@ -1,4 +1,5 @@
 import sklearn.neural_network
+import sklearn.metrics
 import poolmate.teach
 import numpy
 
@@ -24,6 +25,7 @@ phon = loadExamples('C:/Users/mbmhscc4/GitHub/aae/raw/3k/phon.csv', simplify=Tru
 # Define MyLearner
 class MyLearner(object):
     examples = []
+    trainingset = []
     testingset = []
     model = []
     def setmodel(self, model):
@@ -37,13 +39,19 @@ class MyLearner(object):
         # return some float loss
         testset = self.testingset
         i,o = list(zip(*testset))
-        return self.model.score(numpy.array(i),numpy.array(o))
+        return sklearn.metrics.log_loss(numpy.array(o), self.model.predict_proba(numpy.array(i)))
+
+    def loss_training(self, model):
+        # return some float loss
+        trainingset = self.trainingset
+        i,o = list(zip(*trainingset))
+        return sklearn.metrics.log_loss(numpy.array(o), self.model.predict_proba(numpy.array(i)))
 
     def fit(self, xy):
         # return model fit on xy
-        trainingset = [self.examples[i] for i in xy]
+        self.trainingset = [self.examples[i] for i in xy]
         self.testingset = [e for i,e in enumerate(self.examples) if not i in xy]
-        i,o = list(zip(*trainingset))
+        i,o = list(zip(*self.trainingset))
         self.model.fit(numpy.array(i),numpy.array(o))
 
 def setup_learner(hidden_layer_sizes, max_iter, input_patterns, target_patterns):
@@ -55,12 +63,12 @@ def setup_learner(hidden_layer_sizes, max_iter, input_patterns, target_patterns)
         alpha=0.0001,
         batch_size=0, # Small batch size to emphasize sequential dependence
         learning_rate="constant",
-        learning_rate_init=0.001,
+        learning_rate_init=0.1,
         power_t=0.5,
         max_iter=max_iter, # 10000, # Small max iter to exert control over training sequence
         shuffle=True, # Do not shuffle examples, to keep control over sequence
         random_state=None,
-        tol=1e-4,
+        tol=1e-8,
         verbose=False,
         warm_start=False, # Remember model state from .fit() to .fit()
         momentum=0.9,
@@ -88,27 +96,30 @@ def setup_runner(search_budget=1000, teaching_set_size=200):
 if __name__ == '__main__':
     import random
     import sys
-    budget = sys.argv[1]
-    teaching_set_size = sys.argv[1]
-    teaching_set_size = sys.argv[1]
-    candidate_pool = random.sample(range(len(orth)), 1000)
-    learner = setup_learner(hidden_layer_sizes=(100,), max_iter=1000, input_patterns=orth, target_patterns=phon)
-    runner, options = setup_runner(search_budget=1000, teaching_set_size=200)
+    budget = int(sys.argv[1])
+    teaching_set_size = int(sys.argv[2])
+    pool_size = int(sys.argv[3])
+    hidden_size = int(sys.argv[4])
 
-    best_loss, best_set = runner.run_experiment(
-        candidate_pool,
-        learner,
-        options
-    )
+    candidate_pool = random.sample(range(len(orth)), pool_size)
+    runner, options = setup_runner(search_budget=budget, teaching_set_size=teaching_set_size)
 
-    with open('poolmate_candidate_pool.txt', 'w') as f:
-        for e in candidate_pool:
-            f.write("{example:d}\n".format(example=e))
+    for max_iter in range(200,1801,400):
+        learner = setup_learner(hidden_layer_sizes=(hidden_size,), max_iter=max_iter, input_patterns=orth, target_patterns=phon)
+        best_loss, best_set = runner.run_experiment(
+            candidate_pool,
+            learner,
+            options
+        )
 
-    with open('poolmate_bestloss.txt', 'w') as f:
-        f.write("{loss:.4f}\n".format(loss=best_loss))
+        with open('poolmate_candidate_pool.txt', 'w') as f:
+            for e in candidate_pool:
+                f.write("{example:d}\n".format(example=e))
 
-    with open('poolmate_bestset.txt', 'w') as f:
-        for e in best_set:
-            f.write("{example:d}\n".format(example=e))
+        with open('poolmate_bestloss.txt', 'w') as f:
+            f.write("{loss:.4f}\n".format(loss=best_loss))
+
+        with open('poolmate_bestset.txt', 'w') as f:
+            for e in best_set:
+                f.write("{example:d}\n".format(example=e))
 
