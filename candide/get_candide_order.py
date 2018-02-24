@@ -36,6 +36,7 @@ class MyLearner(object):
     model = []
     training_sequence = []
     error_on_corpus = []
+    iteration = []
 
     def setmodel(self, model):
         self.model = model
@@ -81,11 +82,13 @@ class MyLearner(object):
 
         error_on_corpus = []
         lowest_error_on_corpus = float('inf')
-        for exampleID, example in enumerate(self.examples):
-            error_on_corpus = candide_check_example(copy.deepcopy(self.model), I, O, example)
-            if error_on_corpus < lowest_error_on_corpus:
-                x = exampleID
-                lowest_error_on_corpus = error_on_corpus
+        with open('candide_selection_error.csv', 'a') as f:
+            for exampleID, example in enumerate(self.examples):
+                error_on_corpus = candide_check_example(copy.deepcopy(self.model), I, O, example)
+                f.write("{iter:d},{ex:d},{loss:.8f}\n".format(iter=self.model.n_iter_,ex=exampleID,loss=error_on_corpus))
+                if error_on_corpus < lowest_error_on_corpus:
+                    x = exampleID
+                    lowest_error_on_corpus = error_on_corpus
 
         self.training_sequence.append(x)
         self.error_on_corpus.append(lowest_error_on_corpus)
