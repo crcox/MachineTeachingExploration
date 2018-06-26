@@ -100,17 +100,23 @@ if __name__ == '__main__':
     import sys
     budget = int(sys.argv[1])
     teaching_set_size = int(sys.argv[2])
-    pool_size = int(sys.argv[3])
-    eval_size = int(sys.argv[4])
+    #pool_size = int(sys.argv[3])
+    #eval_size = int(sys.argv[4])
+    pool_file = str(sys.argv[3])
+    eval_file = str(sys.argv[4])
     hidden_size = int(sys.argv[5])
 
     # Load data
     orth = loadExamples('C:/Users/mbmhscc4/GitHub/aae/raw/3k/orth.csv', simplify=True)
     phon = loadExamples('C:/Users/mbmhscc4/GitHub/aae/raw/3k/phon.csv', simplify=True)
 
-    candidate_pool = random.sample(range(len(orth)), pool_size)
-    tmp = [i for i in range(len(orth)) if not i in candidate_pool]
-    test_set = random.sample(tmp, eval_size)
+    # candidate_pool = random.sample(range(len(orth)), pool_size)
+    with open(pool_file,'r') as f:
+        candidate_pool = [int(i.strip()) for i in f.readlines()]
+    #tmp = [i for i in range(len(orth)) if not i in candidate_pool]
+    #test_set = random.sample(tmp, eval_size)
+    with open(eval_file,'r') as f:
+        test_set = [int(i.strip()) for i in f.readlines()]
     runner, options = setupRunner(search_budget=budget, teaching_set_size=teaching_set_size)
 
     for max_iter in [250,500,1000,2000]:
